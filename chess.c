@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 int main() {
-    char color[25] = {"⬛⬜⬛⬜⬛⬜⬛⬜"}; 
+    char color[25] = {"⬜⬛⬜⬛⬜⬛⬜⬛"}; 
     *(color+24) = '\0';   
     for (int i = 0; i < 8; i++) {
         printf("\n");
@@ -24,7 +24,7 @@ int main() {
             for (int j = 3; j <= 21; j = j+3) {
                 printf("%c%c%c", *(color + j), *(color + j + 1), *(color + j + 2));
                 if (j == 21) {
-                    printf("⬛");
+                    printf("⬜");
                 }
             }
         }
