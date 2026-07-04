@@ -10,24 +10,21 @@
 
 #include <stdio.h>
 
+#define SIZE 8
+
 int main() {
-    char color[25] = {"⬜⬛⬜⬛⬜⬛⬜⬛"}; 
-    *(color+24) = '\0';   
-    for (int i = 0; i < 8; i++) {
+    char wcell[] = "⬜";
+    char bcell[] = "⬛";
+    char *cell = NULL;
+
+    for (int i = 0; i < SIZE; i++) {
+        cell = (i%2 == 0) ? wcell : bcell;
+        for (int j = 0; j < SIZE; j++) {
+            printf("%s", cell);
+            cell = (cell == wcell) ? bcell : wcell;
+        }
         printf("\n");
-        if (i%2 == 0){
-            for (int j = 0; j < 24; j = j+3) {
-                printf("%c%c%c", *(color + j), *(color + j + 1), *(color + j + 2));
-            }
-        }
-        else {
-            for (int j = 3; j <= 21; j = j+3) {
-                printf("%c%c%c", *(color + j), *(color + j + 1), *(color + j + 2));
-                if (j == 21) {
-                    printf("⬜");
-                }
-            }
-        }
     }
+
     return 0;
 }
