@@ -13,15 +13,13 @@
 #define SIZE 8
 
 int main() {
-    char wcell[] = "⬜";
-    char bcell[] = "⬛";
+    char *cells[] = { "⬜", "⬛" };
     char *cell = NULL;
 
     for (int i = 0; i < SIZE; i++) {
-        cell = (i%2 == 0) ? wcell : bcell;
         for (int j = 0; j < SIZE; j++) {
+            cell = cells[(i%2 + j) % 2];
             printf("%s", cell);
-            cell = (cell == wcell) ? bcell : wcell;
         }
         printf("\n");
     }
