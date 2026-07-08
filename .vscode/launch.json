@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/chess",
+            "args": [
+            ],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb", // or "lldb" on macOS
+            "preLaunchTask": "C/C++: gcc build active file" // links to your tasks.json
+        }
+    ]
+}

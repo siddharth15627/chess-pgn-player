@@ -1,12 +1,8 @@
-//   U+2B1B        1110xxxx 10xxxxxx 10xxxxxx
-//   0000 2B1B
-//   0000 0010 1011 0001 1011 >> 11100010  10101100  10011011
-//   E2 AC 9B
-
-// U+2B1C         1110xxxx 10xxxxxx 10xxxxxx
-// 0000 2B1C
-// 0000 0010 1011 0001 1100 >> 11100010  10101100  10011100
-// E2 AC 9C
+/*
+This code replays a chess game on a Windows terminal. The game
+is read in a format that specifies both source and destination
+cell of each move.
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -14,31 +10,72 @@
 #include <conio.h>
 #include <windows.h>
 
-#define SIZE 8
 
-// typedef struct pieces {
-//     char King[4];
-//     char Queen[4];
-//     char Rook[4];
-//     char Knight[4];
-//     char Bishop[4];
-//     char Pawn[4];
-// } Pieces;
-// Pieces wpieces = {"♔", "♕", "♖", "♘", "♗", "♙"};
-// Pieces bpieces = {"♚", "♛", "♜", "♞", "♝", "♟"};
+//--------------------------------------------------
+// Macros,  type definitions and constants
+//--------------------------------------------------
+#define SIZE 8
+#define MAX_MOVES 250
+
+typedef enum result {
+    NoResult = 0,
+    WhiteWin,
+    BlackWin,
+    Draw
+} GameResult;
+
+typedef struct game {
+    int num_moves;
+    char moves[2*MAX_MOVES][4+1]; // store white and black moves separately
+    GameResult result;
+} Game;
 
 typedef struct coord {
-    int x;
-    int y;
+    int x; // rows 0-7 => rank 8-1
+    int y; // columns 0-7 => file a-h
 } Coord;
 
 typedef struct board {
-    char cell[SIZE][SIZE][4];
+    char cell[SIZE][SIZE][3+1]; // chess pieces in UTF-8 are 3 bytes
 } Board;
-
 
 int const tick_ms = 3000;
 
+
+//--------------------------------------------------
+// Functions
+//--------------------------------------------------
+Game * read_game() {
+    // TODO Read from file instead?
+    char *moves[] = {
+        // White wins, no castling
+        // "e2e4", "c7c5", "g1f3", "g8f6", "b1c3", "e7e6", "d2d4", "c5d4", "f3d4", "f8b4", "e4e5", "f6d5", "c1d2", "d5c3", "b2c3", "b4f8", "f1d3", "d7d6", "d1e2", "b8d7", "d4e6", "d8b6", "e6c7", "1-0"
+        
+        // Draw, with castling at e1c1 (white) and e8g8 (black)
+        "e2e4", "e7e5", "g1f3", "g8f6", "f3e5", "d7d6", "e5f3", "f6e4", "d1e2", "d8e7", "d2d3", "e4f6", "c1g5", "b8d7", "b1c3", "e7e2", "f1e2", "h7h6", "g5h4", "g7g6", "d3d4", "a7a6", "e1c1", "f8g7", "h1e1", "e8g8", "e2c4", "b7b5", "c4d5", "a8b8", "d5c6", "d7b6", "a2a3", "c8b7", "c6b7", "b8b7", "h4f6", "1/2-1/2"
+
+        // Black wins, with promotion at g2f1Q (black)
+        // "e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "f8e7", "e1g1", "g8f6", "b1c3", "e8g8", "d2d3", "d7d6", "c1e3", "c8g4", "d1e2", "c6a5", "c4b3", "a5b3", "a2b3", "a7a6", "b3b4", "d6d5", "f1d1", "d5d4", "e3d2", "d4c3", "d2c3", "f6d7", "d1f1", "g8h8", "e2e3", "e7d6", "a1d1", "f7f5", "d3d4", "f5e4", "d4e5", "e4f3", "e5d6", "f3g2", "e3d4", "g2f1Q", "d1f1", "d8g5", "d4g7", "g5g7", "c3g7", "h8g7", "0-1"
+    };
+
+    Game *game = malloc(sizeof(Game));
+    game->num_moves = 0;
+    game->result = Unknown;
+
+    int num_moves = sizeof(moves) / sizeof(char*);
+    for (int i = 0; i < num_moves; i++) {
+        if (strcmp(moves[i], "1-0") == 0) game->result = WhiteWin;
+        else if (strcmp(moves[i], "0-1") == 0) game->result = BlackWin;
+        else if (strcmp(moves[i], "1/2-1/2") == 0) game->result = Draw;
+        else if (strlen(moves[i]) == 4) strncpy(game->moves[game->num_moves++], moves[i], 4);
+        else {
+            printf("Error: malformed move string %s. Quitting...\n", moves[i]);
+            exit(1);
+        }
+    }
+
+    return game;
+}
 
 void init_board(Board *b) {
     char *wpieces_start[] = { "♖", "♘", "♗", "♕", "♔", "♗", "♘", "♖" };
@@ -76,111 +113,21 @@ int rank_to_row(char rank) {
     return 8 - (rank - '0');
 }
 
-// Mock validation function. In a real engine, you would verify if a piece 
-// can legally move to the destination according to chess rules.
-bool is_legal_move(char *piece, Coord src, Coord *dst, Board *b) {
-    // For this demonstration, we just check if the source matches the piece type
-    // and let the loop locate it.
-    return strcmp(b->cell[src.x][src.y], piece) == 0;
-}
-
-bool interpret_pgn_move(Board *b, char *pgn, bool is_white, Coord *src, Coord *dst) {
-    int len = strlen(pgn);
-    if (len < 2) return false;
-
-    // Remove check (+) or checkmate (#) modifiers from the end
-    char clean_pgn[10];
-    int clean_len = 0;
-    for (int i = 0; i < len && pgn[i] != '+' && pgn[i] != '#'; i++) {
-        clean_pgn[clean_len++] = pgn[i];
-    }
-    clean_pgn[clean_len] = '\0';
-
-    char piece = 'P'; // Default is Pawn
-    int dest_idx = -1;
-    
-    // Disambiguation variables (e.g., 'R' in "Rad1" or '1' in "N1f3")
-    char spec_file = 0; 
-    char spec_rank = 0;
-
-    // 1. Identify the piece type
-    int start_idx = 0;
-    if (isupper(clean_pgn[0])) {
-        piece = clean_pgn[0];
-        start_idx = 1;
-    }
-
-    // 2. Find the destination square (always the last file+rank pair)
-    // Scan backwards to find the rank (digit) and file (letter)
-    int r_idx = clean_len - 1;
-    while (r_idx > start_idx && !isdigit(clean_pgn[r_idx])) r_idx--;
-    int f_idx = r_idx - 1;
-
-    if (f_idx < start_idx || !islower(clean_pgn[f_idx])) {
-        return false; // Invalid notation format
-    }
-
-    dst->y = file_to_col(clean_pgn[f_idx]);
-    dst->x = rank_to_row(clean_pgn[r_idx]);
-
-    // 3. Process any middle disambiguation characters (e.g., "Nbd7" or "R1e4" or "Bxf7")
-    for (int i = start_idx; i < f_idx; i++) {
-        if (clean_pgn[i] == 'x') continue; // Skip capture indicator
-        if (islower(clean_pgn[i])) spec_file = clean_pgn[i];
-        if (isdigit(clean_pgn[i])) spec_rank = clean_pgn[i];
-    }
-
-    // 4. Search the board for the matching source piece
-    char *target_piece;
-    switch (piece) {
-        case 'K':
-            target_piece = is_white ? "♔" : "♚";
-            break;
-        case 'Q':
-            target_piece = is_white ? "♕" : "♛";
-            break;
-        case 'B':
-            target_piece = is_white ? "♗" : "♝";
-            break;
-        case 'N':
-            target_piece = is_white ? "♘" : "♞";
-            break;
-        case 'R':
-            target_piece = is_white ? "♖" : "♜";
-            break;
-        default:   
-            target_piece = is_white ? "♙" : "♟";
-            break;
-    }
-
-    bool found = false;
-    for (int r = 0; r < SIZE; r++) {
-        for (int c = 0; c < SIZE; c++) {
-            if (strcmp(b->cell[r][c], target_piece) == 0) {
-                // Apply optional disambiguation filters if provided in PGN
-                if (spec_file && c != file_to_col(spec_file)) continue;
-                if (spec_rank && r != rank_to_row(spec_rank)) continue;
-
-                Coord potential_src = {r, c};
-                if (is_legal_move(target_piece, potential_src, dst, b)) {
-                    *src = potential_src;
-                    found = true;
-                    break;
-                }
-            }
-        }
-        if (found) break;
-    }
-
-    return found;
-}
-
 void update_board(Board *b, char *move, bool is_white) {
     Coord src, dst;
-    interpret_pgn_move(b, move, is_white, &src, &dst);
 
+    src.x = rank_to_row(move[1]);
+    src.y = file_to_col(move[0]);
+    dst.x = rank_to_row(move[3]);
+    dst.y = file_to_col(move[2]);
+
+    // If this is a capture, the piece at dst is overwritten
     strncpy(b->cell[dst.x][dst.y], b->cell[src.x][src.y], 4);
     strncpy(b->cell[src.x][src.y], " ", 4);
+
+    // TODO Castling
+    
+    // TODO Promotion
 }
 
 void print_board(Board *b) {
@@ -217,22 +164,43 @@ void print_board(Board *b) {
     printf("\n");
 }
 
+void print_endgame(GameResult res) {
+    switch (res) {
+        case WhiteWin:
+            printf("White has won!\n");
+            break;
+        case BlackWin:
+            printf("Black has won!\n");
+            break;
+        case Draw:
+            printf("It's a draw!\n");
+            break;
+        default:
+            printf("Game has no result.\n");
+            break;
+    }
+}
+
+
+//--------------------------------------------------
+// Main processing
+//--------------------------------------------------
 int main() {
     Board board;
 
     init_board(&board);
     print_board(&board);
 
-    
-    char *moves[] = {
-        "e4", "c5", "c3", "Nf6", "e5", "Nd5", "d4", "Nc6", "Nf3", "cxd4", "cxd4", "e6", "a3", "d6", "Bd3", "Qa5+", "Bd2", "Qb6", "Nc3", "Nxc3", "Bxc3", "dxe5", "dxe5", "Be7", "O-O", "Bd7", "Nd2", "Qc7", "Qg4", "O-O-O", "Rfc1", "Kb8", "Qc4", "Rc8", "b4", "f6", "Nf3", "Qb6", "Qe4", "f5", "Qe1", "a6", "Rab1", "g5", "Nd2", "Nd4", "Qe3", "Rxc3", "Rxc3", "f4", "Qe1", "g4", "Ne4", "Bc6", "Nc5", "Ka7", "a4", "Bf3", "a5", "Qd8", "Bc4", "Bxc5", "bxc5", "Qh4", "gxf3", "gxf3", "Kh1", "Rg8", "Qe4", "Rg7", "Qxd4", "Qg5", "c6+", "Kb8", "c7+", "Rxc7", "Rg1", "Qh5", "Rg8+", "Rc8", "Qd6+", "Ka7"
-    };
-    int num_moves = sizeof(moves) / sizeof(char*);
-    for (int i = 0; i < num_moves; i++) {
+    Game *game = read_game();
+
+    for (int i = 0; i < game->num_moves; i++) {
         Sleep(tick_ms);
-        update_board(&board, moves[i], i%2 == 0);
+        update_board(&board, game->moves[i], i%2 == 0);
         print_board(&board);
     }
+    print_endgame(game->result);
+
+    free(game);
 
     return 0;
 }
